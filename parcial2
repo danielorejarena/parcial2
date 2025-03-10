@@ -1,0 +1,109 @@
+package com.example.demo;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.context.MessageSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import reactor.core.publisher.Flux;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import reactor.test.StepVerifier;
+
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+
+@SpringBootApplication
+public class DemoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(DemoApplication.class, args);
+    }
+}
+
+@RestController
+@RequestMapping("/api")
+class SaludoController {
+    @Autowired
+    private MessageSource messageSource;
+
+    @GetMapping("/saludo")
+    public String obtenerSaludo(@RequestHeader(name = "Accept-Language", required = false) Locale locale) {
+        return messageSource.getMessage("saludo", null, locale);
+    }
+}
+
+class Producto {
+    private String id;
+    private String nombre;
+    private double precio;
+
+    public Producto() {}
+
+    public Producto(String id, String nombre, double precio) {
+        this.id = id;
+        this.nombre = nombre;
+        this.precio = precio;
+    }
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
+    public String getNombre() { return nombre; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+
+    public double getPrecio() { return precio; }
+    public void setPrecio(double precio) { this.precio = precio; }
+}
+
+@RestController
+@RequestMapping("/api/productos")
+class ProductoController {
+    private final Map<String, Producto> productos = new ConcurrentHashMap<>();
+
+    @PostMapping
+    public Producto agregarProducto(@RequestBody Producto producto) {
+        productos.put(producto.getId(), producto);
+        return producto;
+    }
+
+    @GetMapping
+    public Flux<Producto> listarProductos() {
+        return Flux.fromIterable(productos.values());
+    }
+
+    @GetMapping("/{id}")
+    public Producto obtenerProducto(@PathVariable String id) {
+        return productos.get(id);
+    }
+
+    @PutMapping("/{id}")
+    public Producto actualizarProducto(@PathVariable String id, @RequestBody Producto producto) {
+        productos.put(id, producto);
+        return producto;
+    }
+
+    @DeleteMapping("/{id}")
+    public void eliminarProducto(@PathVariable String id) {
+        productos.remove(id);
+    }
+}
+
+@SpringBootTest
+@AutoConfigureMockMvc
+class ProductoControllerTest {
+    @Autowired
+    private ProductoController productoController;
+
+    @Test
+    public void testListaProductos() {
+        Flux<Producto> productos = productoController.listarProductos();
+
+        StepVerifier.create(productos)
+            .expectNextMatches(p -> p.getNombre().equals("Laptop"))
+            .expectNextMatches(p -> p.getNombre().equals("Mouse"))
+            .expectNextMatches(p -> p.getNombre().equals("Teclado"))
+            .verifyComplete();
+    }
+}
